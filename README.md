@@ -39,6 +39,12 @@ as you would with any other remote machine by SSHing into it. The following step
 ssh -p 8022 root@<phone-ip>
 ```
 
+And launch the bridge:
+
+```bash
+ros2 launch android_bridge mobile_sensors.launch.py
+```
+
 ## Usage
 
 If everything is working correctly, the bridge node should be publishing on the topics below:
@@ -46,7 +52,7 @@ If everything is working correctly, the bridge node should be publishing on the 
 - `/imu/data_raw`
 - `/imu/mag`
 - `/gps/fix`
-- `/camera/<name>/image_raw/compressed`
+- `/camera/<name>/image_raw/compressed` for each name in the `camera_names` parameter
 - `/battery_state`
 
 And serves the following service:
