@@ -27,7 +27,7 @@ class StreamServer(
     }
 
     @Volatile private var client: Client? = null
-    private var server: LocalSocket? = null
+    @Volatile private var server: LocalSocket? = null
     @Volatile private var running = false
 
     fun start() {
@@ -102,8 +102,7 @@ class StreamServer(
         }
         server = null
         socketFile.delete()
-        client?.let { try { it.socket.close() } catch (_: Exception) {} }
-        client = null
+        client?.let { dropClient(it) }
     }
 
     fun isConnected(): Boolean = client != null
@@ -129,6 +128,8 @@ class StreamServer(
         synchronized(this) {
             if (client === c) client = null
         }
+        try { c.socket.shutdownInput() } catch (_: Exception) {}
+        try { c.socket.shutdownOutput() } catch (_: Exception) {}
         try { c.socket.close() } catch (_: Exception) {}
     }
 }
