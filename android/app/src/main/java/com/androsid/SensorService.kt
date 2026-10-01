@@ -42,7 +42,7 @@ import android.os.BatteryManager
 class SensorService : LifecycleService(), SensorEventListener, LocationListener {
 
     companion object {
-        const val PORT = 9870
+        private const val SOCKET_NAME = "mobile_sensors"
         private const val TAG = "SensorService"
         private const val CHANNEL_ID = "androsid_stream"
         private const val NOTIF_ID = 1
@@ -71,7 +71,7 @@ class SensorService : LifecycleService(), SensorEventListener, LocationListener 
     override fun onCreate() {
         super.onCreate()
 
-        server = StreamServer(PORT) {
+        server = StreamServer(SOCKET_NAME) {
             rawCommand -> handleCommand(rawCommand)
         }
         server.start()
@@ -382,7 +382,7 @@ class SensorService : LifecycleService(), SensorEventListener, LocationListener 
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("androsid")
-            .setContentText("Streaming sensors on port $PORT")
+            .setContentText("Streaming sensors")
             .setSmallIcon(android.R.drawable.stat_notify_sync)
             .setOngoing(true)
             .setContentIntent(tap)
