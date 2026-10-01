@@ -233,10 +233,6 @@ class MobileSensors(LifecycleNode):
             self.get_logger().warn(f"Cannot send command '{cmd}': node is not active")
             return False
 
-        if self._sock is None:
-            self.get_logger().warn("Cannot send command: socket is not connected")
-            return False
-
         payload = {"cmd": cmd}
         payload.update(params)
         cmd_bytes = (json.dumps(payload) + "\n").encode("utf-8")
@@ -245,10 +241,11 @@ class MobileSensors(LifecycleNode):
             with self._send_lock:
                 sock = self._sock
                 if sock is None:
-                    raise OSError("Socket disconnected")
+                    self.get_logger().warn("Cannot send command: socket is not connected")
+                    return False
                 sock.sendall(cmd_bytes)
             return True
-        except (OSError, AttributeError) as e:
+        except OSError as e:
             self.get_logger().error(f"Failed to send command '{cmd}': {e}")
             return False
 
