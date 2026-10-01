@@ -1,15 +1,19 @@
 package com.androsid
 
+import android.net.LocalServerSocket
+import android.net.LocalSocket
+import android.net.LocalSocketAddress
+import android.system.Os
+import android.system.OsConstants
 import android.util.Log
 import java.io.BufferedOutputStream
 import java.io.BufferedReader
+import java.io.File
 import java.io.InputStreamReader
-import java.net.ServerSocket
-import java.net.Socket
 import kotlin.concurrent.thread
 
 class StreamServer(
-    private val port: Int,
+    private val socketFile: File,
     private val idleTimeoutMs: Long = 1000L,
     private val onCommandReceived: ((String) -> Unit)? = null
 ) {
@@ -18,13 +22,13 @@ class StreamServer(
         private const val TAG = "StreamServer"
     }
 
-    private class Client(val socket: Socket) {
-        val out = BufferedOutputStream(socket.getOutputStream(), 64 * 1024)
+    private class Client(val socket: LocalSocket) {
+        val out = BufferedOutputStream(socket.outputStream, 64 * 1024)
         @Volatile var lastSeenAt: Long = System.currentTimeMillis()
     }
 
     @Volatile private var client: Client? = null
-    private var server: ServerSocket? = null
+    private var server: LocalSocket? = null
     @Volatile private var running = false
 
     fun start() {
@@ -33,20 +37,23 @@ class StreamServer(
         thread(name = "androsid-accept", isDaemon = true) {
             while (running) {
                 try {
-                    ServerSocket(port).use { srv ->
-                        server = srv
-                        Log.i(TAG, "listening on 0.0.0.0:$port")
-                        val sock = srv.accept()
-                        sock.tcpNoDelay = true
+                    bindListener().use { listener ->
+                        server = listener
+                        Log.i(TAG, "listening on '${socketFile.absolutePath}'")
+                        val sock = LocalServerSocket(listener.fileDescriptor).accept()
+                        if (!running) {
+                            sock.close()
+                            return@use
+                        }
 
                         val currentClient = Client(sock)
                         this.client = currentClient
-                        Log.i(TAG, "client connected: ${sock.inetAddress}")
+                        Log.i(TAG, "client connected")
 
-                        thread(name="androsid-reader-${sock.port}", isDaemon = true) {
+                        thread(name = "androsid-reader", isDaemon = true) {
                             try {
-                                val reader = BufferedReader(InputStreamReader(sock.getInputStream(), Charsets.UTF_8))
-                                while (running && !sock.isClosed) {
+                                val reader = BufferedReader(InputStreamReader(sock.inputStream, Charsets.UTF_8))
+                                while (running) {
                                     val line = reader.readLine() ?: break
                                     if (line.isNotBlank()) {
                                         currentClient.lastSeenAt = System.currentTimeMillis()
@@ -54,18 +61,21 @@ class StreamServer(
                                     }
                                 }
                             } catch (e: Exception) {
-                                if (running) { 
-                                    Log.i(TAG, "Client read ended: ${e.message}") 
+                                if (running) {
+                                    Log.i(TAG, "client read ended: ${e.message}")
                                 }
                             } finally {
                                 dropClient(currentClient)
                             }
                         }
-                    }
 
-                    while (running && client != null) Thread.sleep(idleTimeoutMs)
+                        while (running && client != null) Thread.sleep(idleTimeoutMs)
+                    }
                 } catch (e: Exception) {
-                    if (running) Log.e(TAG, "accept loop died", e)
+                    if (running) {
+                        Log.e(TAG, "accept loop died", e)
+                        Thread.sleep(idleTimeoutMs)
+                    }
                 }
             }
         }
@@ -84,9 +94,22 @@ class StreamServer(
         }
     }
 
+    private fun bindListener(): LocalSocket {
+        socketFile.parentFile?.mkdirs()
+        socketFile.delete()
+        return LocalSocket(LocalSocket.SOCKET_STREAM).apply {
+            bind(LocalSocketAddress(socketFile.absolutePath, LocalSocketAddress.Namespace.FILESYSTEM))
+        }
+    }
+
     fun stop() {
         running = false
-        try { server?.close() } catch (_: Exception) {}
+        server?.let { srv ->
+            try { Os.shutdown(srv.fileDescriptor, OsConstants.SHUT_RDWR) } catch (_: Exception) {}
+            try { srv.close() } catch (_: Exception) {}
+        }
+        server = null
+        socketFile.delete()
         client?.let { try { it.socket.close() } catch (_: Exception) {} }
         client = null
     }

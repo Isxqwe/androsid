@@ -13,6 +13,7 @@ object ProotLauncher {
         workingDir: String = "/root",
     ): Process {
         val nativeDir = File(context.applicationInfo.nativeLibraryDir)
+        val socketDir = File(context.filesDir, "run").apply { mkdirs() }
         val libDir = File(context.filesDir, "proot-lib").apply { mkdirs() }
         val tmpDir = File(context.filesDir, "proot-tmp").apply { mkdirs() }
         val shmDir = File(context.filesDir, "rootfs-shm").apply { mkdirs() }
@@ -34,6 +35,7 @@ object ProotLauncher {
             "-b", "/dev", "-b", "/proc", "-b", "/sys",
             "-b", "${shmDir.absolutePath}:/dev/shm",
             "-b", "/dev/urandom:/dev/random",
+            "-b", "${socketDir.absolutePath}:/run/androsid",
             "-w", workingDir,
         ) + command
 
