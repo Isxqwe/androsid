@@ -2,6 +2,8 @@ package com.androsid
 
 import android.net.LocalServerSocket
 import android.net.LocalSocket
+import android.system.Os
+import android.system.OsConstants
 import android.util.Log
 import java.io.BufferedOutputStream
 import java.io.BufferedReader
@@ -37,6 +39,10 @@ class StreamServer(
                         server = srv
                         Log.i(TAG, "listening on abstract socket '$socketName'")
                         val sock = srv.accept()
+                        if (!running) {
+                            sock.close()
+                            return@use
+                        }
 
                         val currentClient = Client(sock)
                         this.client = currentClient
@@ -64,7 +70,10 @@ class StreamServer(
                         while (running && client != null) Thread.sleep(idleTimeoutMs)
                     }
                 } catch (e: Exception) {
-                    if (running) Log.e(TAG, "accept loop died", e)
+                    if (running) {
+                        Log.e(TAG, "accept loop died", e)
+                        Thread.sleep(idleTimeoutMs)
+                    }
                 }
             }
         }
@@ -85,7 +94,12 @@ class StreamServer(
 
     fun stop() {
         running = false
-        try { server?.close() } catch (_: Exception) {}
+        server?.let { srv ->
+            // close() alone doesn't wake a blocked accept(), which keeps the name bound
+            try { Os.shutdown(srv.fileDescriptor, OsConstants.SHUT_RDWR) } catch (_: Exception) {}
+            try { srv.close() } catch (_: Exception) {}
+        }
+        server = null
         client?.let { try { it.socket.close() } catch (_: Exception) {} }
         client = null
     }
