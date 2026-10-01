@@ -6,10 +6,10 @@ import android.net.LocalSocketAddress
 import android.system.Os
 import android.system.OsConstants
 import android.util.Log
-import java.io.BufferedOutputStream
 import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
+import java.io.OutputStream
 import kotlin.concurrent.thread
 
 class StreamServer(
@@ -23,7 +23,7 @@ class StreamServer(
     }
 
     private class Client(val socket: LocalSocket) {
-        val out = BufferedOutputStream(socket.outputStream, 64 * 1024)
+        val out: OutputStream = socket.outputStream
     }
 
     @Volatile private var client: Client? = null
@@ -108,20 +108,17 @@ class StreamServer(
 
     fun isConnected(): Boolean = client != null
 
-    fun broadcast(json: String) =
-        broadcastLine((json + "\n").toByteArray(Charsets.UTF_8))
+    fun send(json: String) =
+        sendLine((json + "\n").toByteArray(Charsets.UTF_8))
 
-    fun broadcastLine(line: ByteArray) {
+    fun sendLine(line: ByteArray) {
         val c = client ?: return
         writeTo(c, line)
     }
 
     private fun writeTo(c: Client, line: ByteArray) {
         try {
-            synchronized(c) {
-                c.out.write(line)
-                c.out.flush()
-            }
+            synchronized(c) { c.out.write(line) }
         } catch (e: Exception) {
             Log.i(TAG, "client dropped: ${e.message}")
             dropClient(c)
