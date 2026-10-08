@@ -202,8 +202,6 @@ class MobileSensors(LifecycleNode):
                 elif sample_type == "battery":
                     self._on_battery(sample)
             except (KeyError, TypeError, ValueError) as e:
-                # Valid JSON with the wrong shape means app and bridge are out of
-                # sync (e.g. old rootfs, newer app), so don't just drop it.
                 self.get_logger().fatal(
                     f"Can't convert '{sample_type}' sample ({e!r}), app and bridge "
                     f"are probably on different versions: {line[:200]}"
